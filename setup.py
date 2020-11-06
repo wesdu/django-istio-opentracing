@@ -1,11 +1,12 @@
 import setuptools
+import io
 from os import path as os_path
 
 this_directory = os_path.abspath(os_path.dirname(__file__))
 
 
 def read_file(filename):
-    with open(os_path.join(this_directory, filename), encoding='utf-8') as f:
+    with io.open(os_path.join(this_directory, filename), encoding='utf-8') as f:
         long_description = f.read()
     return long_description
 
@@ -21,7 +22,7 @@ def read_requirements(filename):
 
 setuptools.setup(
     name="django_istio_opentracing",
-    version="0.1.0",
+    version="1.0.1",
     author="Du Wei",
     author_email="pandorid@gmail.com",
     description="Django opentracing middleware works with k8s and istio",
@@ -32,7 +33,16 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=read_requirements('requirements.txt'),
     classifiers=[
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        'Framework :: Django :: 1.9',
+        'Framework :: Django :: 1.10',
+        'Framework :: Django :: 2.1',
+        'Framework :: Django :: 2.2',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
 )
