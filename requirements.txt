@@ -1,2 +1,3 @@
-jaeger-client==4.3.0
+jaeger-client==4.6.1
 opentracing==2.3.0
+wrapt==1.12.1
