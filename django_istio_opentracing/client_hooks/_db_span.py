@@ -1,15 +1,17 @@
 from opentracing.span import Span
-from django_istio_opentracing import tracer, get_current_span
+from django_istio_opentracing import tracer
 from ._const import TRANS_TAGS
 import opentracing
 from opentracing.ext import tags
+from typing import Union
 
 
-def db_span(self, query: str, db_instance: str, db_type="SQL") -> Span:
+def db_span(
+    self, span: Union[Span, None], query: str, span_tag={}, db_type="SQL"
+) -> Span:
     """
     Span for database
     """
-    span = get_current_span()
     statement = query.strip()
     spance_idx = statement.find(" ")
     if query in TRANS_TAGS:
@@ -20,10 +22,10 @@ def db_span(self, query: str, db_instance: str, db_type="SQL") -> Span:
         else:
             operation = statement[0:spance_idx]
 
-    span_tag = {tags.SPAN_KIND: tags.SPAN_KIND_RPC_CLIENT}
+    span_tag[tags.SPAN_KIND] = tags.SPAN_KIND_RPC_CLIENT
     span_tag[tags.DATABASE_STATEMENT] = statement
     span_tag[tags.DATABASE_TYPE] = db_type
-    span_tag[tags.DATABASE_INSTANCE] = db_instance
+    span_tag[tags.DATABASE_INSTANCE] = self._module_name
 
     if self._conn_params:
         span_tag[tags.DATABASE_USER] = self._conn_params["safe_kwargs"].get(
@@ -32,7 +34,9 @@ def db_span(self, query: str, db_instance: str, db_type="SQL") -> Span:
         host = self._conn_params["safe_kwargs"].get("host", " ")
         port = self._conn_params["safe_kwargs"].get("port", " ")
         db = self._conn_params["safe_kwargs"].get("db", " ")
-        span_tag[tags.PEER_ADDRESS] = f"{db_instance}://{host}:{port}/{db}"
+        span_tag[
+            tags.PEER_ADDRESS
+        ] = f"{self._module_name}://{host}:{port}/{db}"
 
     return start_child_span(
         operation_name=operation, tracer=tracer, parent=span, span_tag=span_tag

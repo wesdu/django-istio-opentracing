@@ -38,3 +38,12 @@ def index(request):
     print(get_opentracing_span_headers())
     return HttpResponse('ok')
 ```
+
+Database tracing
+
+You can add the ability of database tracing by installing patch of mysql and Redis without make any changes
+```python
+from django_istio_opentracing.client_hooks import mysql_client, redis_client
+mysql_client.install_patch()
+redis_client.install_patch()
+```

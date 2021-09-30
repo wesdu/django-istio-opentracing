@@ -7,13 +7,9 @@ else:
 
 from ._db_span import db_span
 from ._const import BEGIN, COMMIT, ROLLBACK, MYSQLDB
-
+from django_istio_opentracing import get_current_span
 import wrapt
 
-try:
-    import ujson as json
-except Exception:
-    import json
 
 ignore_query = [
     "SELECT @@SQL_AUTO_IS_NULL",
@@ -31,47 +27,38 @@ class CursorWrapper(wrapt.ObjectProxy):
         self._module_name = module_name
         self._conn_params = conn_params
 
-    def execute(self, query, args=()):
+    def execute(self, query, args=None):
+        """Ignore part of the query"""
         for value in ignore_query:
             if str(query).startswith(value):
-                if args:
-                    return self.__wrapped__.execute(query, args)
-                else:
-                    return self.__wrapped__.execute(query)
-        try:
-            statement = query % args
-        except Exception as e:
-            print(f"opentracing-error {repr(e)}")
-            if args:
-                statement = json.dumps(
-                    dict(query=str(query), args=list(map(str, args)))
-                )
-                with db_span(
-                    self, query=statement, db_instance=self._module_name
-                ):
-                    return self.__wrapped__.execute(query, args)
-            else:
-                statement = json.dumps(dict(query=str(query)))
-                with db_span(
-                    self, query=statement, db_instance=self._module_name
-                ):
-                    return self.__wrapped__.execute(query)
-        else:
-            with db_span(self, query=statement, db_instance=self._module_name):
                 return self.__wrapped__.execute(query, args)
 
-    def executemany(self, query, args=()):
-        if args:
-            statement = json.dumps(
-                dict(query=str(query), args=list(map(str, args)))
-            )
-        else:
-            statement = json.dumps(dict(query=str(query)))
-        with db_span(self, query=statement, db_instance=self._module_name):
-            return self.__wrapped__.executemany(query, args)
+        """Span is None is usually not a legal request operation"""
+        span = get_current_span()
+        if span is None:
+            return self.__wrapped__.execute(query, args)
 
-    def callproc(self, procname, args=()):
-        return self.__wrapped__.callproc(procname, args)
+        db = self.connection
+        statement = query
+        try:
+            if args is not None:
+                if isinstance(args, dict):
+                    nargs = {}
+                    for key, item in args.items():
+                        if isinstance(key, str):
+                            key = key.encode(db.encoding)
+                        nargs[key] = db.literal(item)
+                    args = nargs
+                else:
+                    args = tuple(map(db.literal, args))
+                statement = query % args
+        except Exception:
+            span_tag = {"event": "error"}
+            with db_span(self, span=span, query=statement, span_tag=span_tag):
+                return self.__wrapped__.execute(query, args)
+        else:
+            with db_span(self, span=span, query=statement):
+                return self.__wrapped__.execute(query, args)
 
 
 class ConnectionWrapper(wrapt.ObjectProxy):
@@ -97,22 +84,31 @@ class ConnectionWrapper(wrapt.ObjectProxy):
         )
 
     def begin(self):
-        with db_span(self, query=BEGIN, db_instance=self._module_name):
+        span = get_current_span()
+        if span is None:
+            return self.__wrapped__.begin()
+        with db_span(self, span=span, query=BEGIN):
             return self.__wrapped__.begin()
 
     def commit(self):
-        with db_span(self, query=COMMIT, db_instance=self._module_name):
+        span = get_current_span()
+        if span is None:
+            return self.__wrapped__.commit()
+        with db_span(self, span=span, query=COMMIT):
             return self.__wrapped__.commit()
 
     def rollback(self):
-        with db_span(self, query=ROLLBACK, db_instance=self._module_name):
+        span = get_current_span()
+        if span is None:
+            return self.__wrapped__.rollback()
+        with db_span(self, span=span, query=ROLLBACK):
             return self.__wrapped__.rollback()
 
 
 class ConnectionFactory(object):
     __slots__ = ("_connect_func", "_connect_wrapper", "_module_name")
 
-    def __init__(self, conn_func, module_name):
+    def __init__(self, conn_func, module_name=" "):
         self._connect_func = conn_func
         self._connect_wrapper = ConnectionWrapper
         self._module_name = module_name
