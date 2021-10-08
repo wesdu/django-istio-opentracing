@@ -74,6 +74,7 @@ def redis_span(
         if hasattr(self.connection_pool, "max_connections"):
             max_connections = self.connection_pool.max_connections
     except Exception as e:
+        span_tag["event"] = "error"
         print("redis_span_errors", repr(e))
 
     span_tag[tags.PEER_ADDRESS] = f"redis://:{host}:{port}/{db}"
