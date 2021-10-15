@@ -40,6 +40,7 @@ class CursorWrapper(wrapt.ObjectProxy):
 
         db = self.connection
         statement = query
+        format_args = args
         try:
             if args is not None:
                 if isinstance(args, dict):
@@ -48,10 +49,10 @@ class CursorWrapper(wrapt.ObjectProxy):
                         if isinstance(key, str):
                             key = key.encode(db.encoding)
                         nargs[key] = db.literal(item)
-                    args = nargs
+                    format_args = nargs
                 else:
-                    args = tuple(map(db.literal, args))
-                statement = query % args
+                    format_args = tuple(map(db.literal, args))
+                statement = query % format_args
         except Exception:
             span_tag = {"event": "error"}
             with db_span(self, span=span, query=statement, span_tag=span_tag):
