@@ -27,7 +27,7 @@ def read_requirements(filename):
 
 setuptools.setup(
     name="django_istio_opentracing",
-    version="1.0.2",
+    version="1.0.3",
     author="Du Wei",
     author_email="pandorid@gmail.com",
     description="Django opentracing middleware works with k8s and istio",
