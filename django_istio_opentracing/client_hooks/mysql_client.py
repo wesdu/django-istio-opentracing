@@ -40,7 +40,7 @@ class CursorWrapper(wrapt.ObjectProxy):
 
         db = self.connection
         statement = query
-        format_args = args
+        format_args = None
         try:
             if args is not None:
                 if isinstance(args, dict):
