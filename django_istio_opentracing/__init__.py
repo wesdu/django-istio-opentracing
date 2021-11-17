@@ -1,19 +1,27 @@
 __name__ = "django_istio_opentracing"
-from jaeger_client import Tracer, ConstSampler
-from jaeger_client.reporter import NullReporter
-from jaeger_client.codecs import B3Codec
 from opentracing.scope_managers import ThreadLocalScopeManager
 from opentracing.propagation import Format
+from jaeger_client import Config
+import os
 
+# deployment.yaml will set the following env for each service
+project_name = os.getenv("PROJECT_NAME", "PROJECT_NAME")
+namespace = os.getenv("NAMESPACE", "NAMESPACE")
 
-tracer = Tracer(
-    one_span_per_rpc=True,
-    service_name='wk_ms',
-    reporter=NullReporter(),
-    sampler=ConstSampler(decision=True),
-    extra_codecs={Format.HTTP_HEADERS: B3Codec()},
+config = Config(
+    config={
+        "sampler": {"type": "const", "param": 1},
+        "logging": False,
+        "reporter_queue_size": 2000,
+        "propagation": "b3",  # Compatible with istio
+        "generate_128bit_trace_id": True,  # Compatible with istio
+    },
+    service_name=f"{project_name}.{namespace}",
     scope_manager=ThreadLocalScopeManager(),
+    validate=True,
 )
+
+tracer = config.initialize_tracer()
 
 
 def get_opentracing_span_headers():
@@ -22,9 +30,15 @@ def get_opentracing_span_headers():
     if scope is not None:
         span = scope.span
         tracer.inject(
-            span_context=span,
-            format=Format.HTTP_HEADERS,
-            carrier=carrier)
-        for k, v in getattr(span, 'extra_headers', {}).items():
+            span_context=span, format=Format.HTTP_HEADERS, carrier=carrier
+        )
+        for k, v in getattr(span, "extra_headers", {}).items():
             carrier[k] = v
     return carrier
+
+
+def get_current_span():
+    scope = tracer.scope_manager.active
+    if scope is not None:
+        return scope.span
+    return None
