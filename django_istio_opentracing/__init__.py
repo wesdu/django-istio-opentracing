@@ -4,6 +4,8 @@ from opentracing.propagation import Format
 from jaeger_client import Config
 import os
 
+from .b3 import B3Codec128Bit
+
 # deployment.yaml will set the following env for each service
 project_name = os.getenv("PROJECT_NAME", "PROJECT_NAME")
 namespace = os.getenv("NAMESPACE", "NAMESPACE")
@@ -16,12 +18,15 @@ config = Config(
         "propagation": "b3",  # Compatible with istio
         "generate_128bit_trace_id": True,  # Compatible with istio
     },
-    service_name=f"{project_name}.{namespace}",
+    service_name="{}.{}".format(project_name, namespace),
     scope_manager=ThreadLocalScopeManager(),
     validate=True,
 )
 
 tracer = config.initialize_tracer()
+# Replace only the HTTP header codec so 128-bit IDs retain leading zeroes
+# when they are propagated to downstream services.
+tracer.codecs[Format.HTTP_HEADERS] = B3Codec128Bit()
 
 
 def get_opentracing_span_headers():
